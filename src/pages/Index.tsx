@@ -7,6 +7,9 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
 import { Progress } from '@/components/ui/progress';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { toast } from '@/hooks/use-toast';
 
 interface Equipment {
   id: number;
@@ -51,6 +54,14 @@ const Index = () => {
   });
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedEquipment, setSelectedEquipment] = useState<Equipment | null>(null);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [rentalForm, setRentalForm] = useState({
+    clientName: '',
+    clientEmail: '',
+    startDate: '',
+    endDate: ''
+  });
 
   useEffect(() => {
     fetchEquipment();
@@ -192,6 +203,28 @@ const Index = () => {
     return matchesStatus && matchesSearch;
   });
 
+  const handleRentClick = (item: Equipment) => {
+    setSelectedEquipment(item);
+    setIsDialogOpen(true);
+  };
+
+  const handleRentalSubmit = () => {
+    if (!rentalForm.clientName || !rentalForm.clientEmail || !rentalForm.startDate || !rentalForm.endDate) {
+      toast({
+        title: 'Ошибка',
+        description: 'Заполните все поля',
+        variant: 'destructive'
+      });
+      return;
+    }
+    toast({
+      title: 'Аренда оформлена!',
+      description: `${selectedEquipment?.name} забронировано для ${rentalForm.clientName}`,
+    });
+    setIsDialogOpen(false);
+    setRentalForm({ clientName: '', clientEmail: '', startDate: '', endDate: '' });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
       <header className="border-b bg-card/50 backdrop-blur-sm sticky top-0 z-50">
@@ -208,10 +241,81 @@ const Index = () => {
                 <p className="text-xs text-muted-foreground">Система аренды оборудования</p>
               </div>
             </div>
-            <Button className="bg-gradient-to-r from-primary to-secondary hover:opacity-90">
-              <Icon name="Plus" size={18} className="mr-2" />
-              Новая аренда
-            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-primary to-secondary hover:opacity-90">
+                  <Icon name="Plus" size={18} className="mr-2" />
+                  Новая аренда
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[500px]">
+                <DialogHeader>
+                  <DialogTitle>Оформление аренды</DialogTitle>
+                  <DialogDescription>
+                    {selectedEquipment ? `${selectedEquipment.name} — ${selectedEquipment.daily_rate.toLocaleString()} ₽/день` : 'Заполните данные для аренды'}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="clientName">ФИО клиента</Label>
+                    <Input
+                      id="clientName"
+                      value={rentalForm.clientName}
+                      onChange={(e) => setRentalForm({...rentalForm, clientName: e.target.value})}
+                      placeholder="Иван Иванов"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="clientEmail">Email</Label>
+                    <Input
+                      id="clientEmail"
+                      type="email"
+                      value={rentalForm.clientEmail}
+                      onChange={(e) => setRentalForm({...rentalForm, clientEmail: e.target.value})}
+                      placeholder="ivan@example.com"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="startDate">Дата начала</Label>
+                      <Input
+                        id="startDate"
+                        type="date"
+                        value={rentalForm.startDate}
+                        onChange={(e) => setRentalForm({...rentalForm, startDate: e.target.value})}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="endDate">Дата окончания</Label>
+                      <Input
+                        id="endDate"
+                        type="date"
+                        value={rentalForm.endDate}
+                        onChange={(e) => setRentalForm({...rentalForm, endDate: e.target.value})}
+                      />
+                    </div>
+                  </div>
+                  {selectedEquipment && rentalForm.startDate && rentalForm.endDate && (
+                    <div className="p-4 bg-muted rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-muted-foreground">Итого к оплате:</span>
+                        <span className="text-2xl font-bold text-primary">
+                          {(selectedEquipment.daily_rate * Math.ceil((new Date(rentalForm.endDate).getTime() - new Date(rentalForm.startDate).getTime()) / (1000 * 3600 * 24))).toLocaleString()} ₽
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setIsDialogOpen(false)} className="flex-1">
+                    Отмена
+                  </Button>
+                  <Button onClick={handleRentalSubmit} className="flex-1 bg-gradient-to-r from-primary to-secondary">
+                    Оформить аренду
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
         </div>
       </header>
@@ -365,7 +469,12 @@ const Index = () => {
                             <p className="text-2xl font-bold text-primary">{item.daily_rate.toLocaleString()} ₽</p>
                             <p className="text-xs text-muted-foreground">за день</p>
                           </div>
-                          <Button size="sm" className="bg-gradient-to-r from-primary to-secondary">
+                          <Button 
+                            size="sm" 
+                            className="bg-gradient-to-r from-primary to-secondary"
+                            onClick={() => handleRentClick(item)}
+                            disabled={item.status !== 'available'}
+                          >
                             Арендовать
                           </Button>
                         </div>
